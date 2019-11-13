@@ -58,6 +58,135 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	
 	JavaPlugin plugin;
 	
+	// Configurable variables start
+	public static boolean bedrockBreaking = true;
+	public static boolean doomStaff = true;
+	public static boolean lightningStaff = true;
+	public static boolean coalDiamonds = true;
+	public static boolean enableTurrets = true;
+	public static boolean allowTurretInfinity = true;
+	public static boolean turretsUseAmmo = true;
+	public static double raycastPrecision = 0.05;
+	public static float minTurretRange = 5.0f;
+	public static float maxTurretRange = 64.0f;
+	public static float rangePerUpgrade = 0.921875f;
+	public static float minArrowVel = 0.4f;
+	public static float maxArrowVel = 10.0f;
+	public static float arrowVelPerUpgrade = 0.15f;
+	public static long minDelay = 0;
+	public static long maxDelay = 64;
+	public static long delayPerUpgrade = 1;
+	public static int turretsPerPerson = 5;
+	// Configurable variables end
+	
+	public void loadConfig() {
+		String fileSeparator = System.getProperty("file.separator");
+		String path = "plugins" + fileSeparator + "HoodCraft" + fileSeparator + "config.conf";
+		try {
+			BufferedReader inFile = new BufferedReader(new FileReader(path));
+			String currentString;
+			String[] splitString;
+			String var;
+			String val; 
+			do {
+				currentString = inFile.readLine();
+				if(currentString == null) break;
+				splitString = currentString.split("=");
+				if(splitString == null || splitString.length != 2) continue;
+				var = splitString[0].trim().toLowerCase();
+				val = splitString[1].trim().toLowerCase();
+				
+				switch(var) {
+				case "allow-bedrock-breaking":
+					if(val.contentEquals("false") || val.equals("0")) bedrockBreaking = false;
+					break;
+				case "enable-doom-staff":
+					if(val.contentEquals("false") || val.equals("0")) doomStaff = false;
+					break;
+				case "enable-lightning-staff":
+					if(val.contentEquals("false") || val.equals("0")) lightningStaff = false;
+					break;
+				case "coal-can-be-punched-into-diamonds":
+					if(val.contentEquals("false") || val.equals("0")) coalDiamonds = false;
+					break;
+				case "enable-turrets":
+					if(val.contentEquals("false") || val.equals("0")) enableTurrets = false;
+					break;
+				case "allow-turret-infinity-modifier":
+					if(val.contentEquals("false") || val.equals("0")) allowTurretInfinity = false;
+					break;
+				case "turrets-use-ammo":
+					if(val.contentEquals("false") || val.equals("0")) turretsUseAmmo = false;
+					break;
+				case "turret-raycast-step":
+					raycastPrecision = Double.parseDouble(val);
+					break;
+				case "turret-min-range":
+					minTurretRange = Float.parseFloat(val);
+					break;
+				case "turret-max-range":
+					maxTurretRange = Float.parseFloat(val);
+					break;
+				case "turret-range-per-upgrade":
+					rangePerUpgrade = Float.parseFloat(val);
+					break;
+				case "turret-min-arrow-velocity":
+					minArrowVel = Float.parseFloat(val);
+					break;
+				case "turret-max-arrow-velocity":
+					maxArrowVel = Float.parseFloat(val);
+					break;
+				case "turret-arrow-velocity-per-upgrade":
+					arrowVelPerUpgrade = Float.parseFloat(val);
+					break;
+				case "turret-min-fire-delay":
+					minDelay = Long.parseLong(val);
+					break;
+				case "turret-max-fire-delay":
+					maxDelay = Long.parseLong(val);
+					break;
+				case "turret-fire-delay-per-upgrade":
+					delayPerUpgrade = Long.parseLong(val);
+					break;
+				case "turrets-per-person":
+					turretsPerPerson = Integer.parseInt(val);
+					break;
+				}
+				
+			} while(currentString != null);
+			inFile.close();
+		} catch (IOException e) {
+			String fileString = "";
+			fileString += "allow-bedrock-breaking = " + bedrockBreaking + "\n";
+			fileString += "enable-doom-staff = " + doomStaff + "\n";
+			fileString += "enable-lightning-staff = " + lightningStaff + "\n";
+			fileString += "coal-can-be-punched-into-diamonds = " + coalDiamonds + "\n";
+			fileString += "enable-turrets = " + enableTurrets + "\n";
+			fileString += "allow-turret-infinity-modifier = " + allowTurretInfinity + "\n";
+			fileString += "turrets-use-ammo = " + turretsUseAmmo + "\n";
+			fileString += "turret-raycast-step = " + raycastPrecision + "\n";
+			fileString += "turret-min-range = " + minTurretRange + "\n";
+			fileString += "turret-max-range = " + maxTurretRange + "\n";
+			fileString += "turret-range-per-upgrade = " + rangePerUpgrade + "\n";
+			fileString += "turret-min-arrow-velocity = " + minArrowVel + "\n";
+			fileString += "turret-max-arrow-velocity = " + maxArrowVel + "\n";
+			fileString += "turret-arrow-velocity-per-upgrade = " + arrowVelPerUpgrade + "\n";
+			fileString += "turret-min-fire-delay = " + minDelay + "\n";
+			fileString += "turret-max-fire-delay = " + maxDelay + "\n";
+			fileString += "turret-fire-delay-per-upgrade = " + delayPerUpgrade + "\n";
+			fileString += "turrets-per-person = " + turretsPerPerson + "\n";
+			
+			try {
+				FileOutputStream fos = new FileOutputStream(path);
+				fos.write(fileString.getBytes());
+				fos.flush();
+				fos.close();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+		}
+	}
+	
 	private class SortByDistance implements Comparator<Entity> { 
 		
 		public Location playerHeadPos;
@@ -119,11 +248,12 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		private float arrowVelocity;
 		private long fireRate;
 		private long currentDelay;
-		public static final double raycastPrecision = 0.05;
+		
 		
 		public void setOwner(Entity e) {
 			owner = e.getName();
 		}
+		
 		
 		public boolean isOwner(Entity e) {
 			if(owner == null) return false;
@@ -202,6 +332,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		}
 		
 		public boolean hasInfinityItem() {
+			if(!allowTurretInfinity) return false;
 			Inventory inv = getInventory();
 			int bow, crossbow;
 			if(inv.contains(Material.BOW)) {
@@ -219,22 +350,22 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			Inventory inv = getInventory();
 			if(inv == null) return;
 			if(!inv.contains(Material.DIAMOND_BLOCK)) {
-				range =  5.0f;
+				range =  minTurretRange;
 				return;
 			}
-			range = 5.0f + (float)inv.getItem(inv.first(Material.DIAMOND_BLOCK)).getAmount()*0.921875f;
-			if(range > 64f) range = 64.0f;
+			range = minTurretRange + (float)inv.getItem(inv.first(Material.DIAMOND_BLOCK)).getAmount()*rangePerUpgrade;
+			if(range > maxTurretRange) range = maxTurretRange;
 		}
 		
 		public void updateArrowVelocity() {
 			Inventory inv = getInventory();
 			if(inv == null) return;
 			if(!inv.contains(Material.NETHER_STAR)) {
-				arrowVelocity = 0.4f;
+				arrowVelocity = minArrowVel;
 				return;
 			}
-			arrowVelocity = 0.4f + (float)inv.getItem(inv.first(Material.NETHER_STAR)).getAmount()*0.15f;
-			if(arrowVelocity > 10f) arrowVelocity = 10f;
+			arrowVelocity = minArrowVel + (float)inv.getItem(inv.first(Material.NETHER_STAR)).getAmount()*arrowVelPerUpgrade;
+			if(arrowVelocity > maxArrowVel) arrowVelocity = maxArrowVel;
 		}
 		
 		public boolean updateFireRate() {
@@ -242,12 +373,15 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			Inventory inv = getInventory();
 			if(inv == null) return false;
 			if(!inv.contains(Material.EMERALD_BLOCK)) {
-				fireRate =  64;
+				fireRate =  maxDelay;
 			}
 			else {
 				int emeraldBlock = inv.first(Material.EMERALD_BLOCK);
-				fireRate = 64 - inv.getItem(emeraldBlock).getAmount();
+				fireRate = maxDelay - inv.getItem(emeraldBlock).getAmount()*delayPerUpgrade;
 			}
+			
+			if(fireRate < minDelay) fireRate = minDelay;
+			if(fireRate < 0) fireRate = 0;
 			
 			if(oldFireRate != fireRate) {
 				return true;
@@ -368,7 +502,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		
 		
 		public void sendTurretInfo(Player p) {
-			p.sendMessage(ChatColor.DARK_PURPLE + "Infinity Modifier: " + hasInfinity + ChatColor.DARK_GREEN + "\nDetection Range: " + range + ChatColor.YELLOW + "\nArrow Launch Velocity: " + arrowVelocity + ChatColor.DARK_RED +"\nFire Rate: " + fireRate);
+			p.sendMessage(ChatColor.DARK_PURPLE + "Infinity Modifier: " + hasInfinity + ChatColor.DARK_GREEN + "\nDetection Range: " + range + ChatColor.YELLOW + "\nArrow Launch Velocity: " + arrowVelocity + ChatColor.DARK_RED +"\nFire Delay: " + fireRate);
 		}
 
 		@Override
@@ -384,10 +518,10 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				return;
 			}
 			if(inv == null) this.cancel();
-			if( currentDelay == 0 && (hasInfinity || inv.contains(Material.ARROW))) {
+			if( currentDelay == 0 && (!turretsUseAmmo || hasInfinity || inv.contains(Material.ARROW))) {
 				int arrowIndex = inv.first(Material.ARROW);
 				boolean shot = shootNearby();
-				if(shot && !hasInfinity) {
+				if(shot && !hasInfinity && turretsUseAmmo) {
 					inv.setItem(arrowIndex, new ItemStack(Material.ARROW,inv.getItem(arrowIndex).getAmount()-1));
 				}
 				if(shot) currentDelay = fireRate+1;
@@ -495,6 +629,8 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	
 	private static ArrayList<String> bedrockPlayers = new ArrayList<String>();
 	private Random random = new Random();
+	
+	
 	@Override
 	public void onEnable() {
 	Bukkit.getServer().getPluginManager().registerEvents(this, this);
@@ -503,7 +639,8 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	String fileSeparator = System.getProperty("file.separator");
 	File pluginDir = new File("plugins" + fileSeparator + "HoodCraft");
 	pluginDir.mkdir();
-	loadTurrets();
+	loadConfig();
+	if(enableTurrets) loadTurrets();
 	}
 	
 	
@@ -611,7 +748,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		
 		Player p = event.getPlayer();
 		
-		if(event.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {
+		if(enableTurrets && event.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {
 			Block clicked = event.getClickedBlock();
 			if(clicked.getType().equals(Material.DISPENSER)) {
 				DispenserTurret clickedTurret = getDispenserTurret(clicked);
@@ -629,7 +766,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		}
 		
 		if(event.getAction().equals(Action.RIGHT_CLICK_AIR) || event.getAction().equals(Action.RIGHT_CLICK_BLOCK)) {
-			if(p.getItemInHand().getType() == Material.STICK && (p.getItemInHand().getItemMeta().getDisplayName() == "Doom Staff" || p.getItemInHand().getItemMeta().getDisplayName().matches("Doom Staff"))) {
+			if(doomStaff && p.getItemInHand().getType() == Material.STICK && (p.getItemInHand().getItemMeta().getDisplayName() == "Doom Staff" || p.getItemInHand().getItemMeta().getDisplayName().matches("Doom Staff"))) {
 				Block lookingAtBlock = p.getTargetBlockExact(16*12);
 				Location lookingAt = null;
 				if(lookingAtBlock != null)
@@ -645,7 +782,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		}
 		
 		if(event.getAction().equals(Action.LEFT_CLICK_AIR) || event.getAction().equals(Action.LEFT_CLICK_BLOCK)) {
-				if(p.getItemInHand().getType() == Material.STICK && (p.getItemInHand().getItemMeta().getDisplayName() == "Doom Staff" || p.getItemInHand().getItemMeta().getDisplayName().matches("Doom Staff"))) {
+				if(doomStaff && p.getItemInHand().getType() == Material.STICK && (p.getItemInHand().getItemMeta().getDisplayName() == "Doom Staff" || p.getItemInHand().getItemMeta().getDisplayName().matches("Doom Staff"))) {
 					
 					Block lookingAtBlock = p.getTargetBlockExact(16*12);
 					Location lookingAt = null;
@@ -702,7 +839,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 					};
 				}
 				
-				if(p.getItemInHand().getType() == Material.STICK && (p.getItemInHand().getItemMeta().getDisplayName() == "Lightning Staff" || p.getItemInHand().getItemMeta().getDisplayName().matches("Lightning Staff"))) {
+				if(lightningStaff && p.getItemInHand().getType() == Material.STICK && (p.getItemInHand().getItemMeta().getDisplayName() == "Lightning Staff" || p.getItemInHand().getItemMeta().getDisplayName().matches("Lightning Staff"))) {
 	
 					Block lookingAtBlock = p.getTargetBlockExact(16*12);
 					Location lookingAt = null;
@@ -726,19 +863,19 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		if(event.getAction().equals(Action.LEFT_CLICK_BLOCK)){
 			Block clicked = event.getClickedBlock();
 			Location clickedPos = clicked.getLocation();
-			if(clicked.getType() == Material.COAL_BLOCK) {
+			if(coalDiamonds && clicked.getType() == Material.COAL_BLOCK) {
 				if(random .nextInt(200) == 1){
 					clicked.setType(Material.AIR);
 					//Bukkit.broadcastMessage(p.getDisplayName() + " successfully made a diamond from coal!");
 					p.getWorld().dropItemNaturally(clickedPos, new ItemStack(Material.DIAMOND,1));
 				}
 			}
-			if(clicked.getType().equals(Material.DISPENSER)) {
+			if(enableTurrets && clicked.getType().equals(Material.DISPENSER)) {
 				if(!p.isSneaking()) return;
 				boolean hasSomethingInHand = !p.getItemInHand().getType().equals(Material.AIR);
 				if(hasSomethingInHand) return;
-				if(getDispenserTurret(clicked) == null && countTurrets(p) >= 5) {
-					p.sendMessage(ChatColor.DARK_RED + "Sorry, you have reached your turret limit(5).");
+				if(getDispenserTurret(clicked) == null && countTurrets(p) >= turretsPerPerson) {
+					p.sendMessage(ChatColor.DARK_RED + "Sorry, you have reached your turret limit(" + turretsPerPerson + ").");
 					return;
 				}
 				if(addTurret(clicked)) {
@@ -765,7 +902,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				}
 			}
 			
-			if(clicked.getType() == Material.BEDROCK) {
+			if(bedrockBreaking && clicked.getType() == Material.BEDROCK) {
 				MainHand hand = p.getMainHand();
 				ItemStack handItem = p.getItemInHand();
 				if(handItem.getType().equals(Material.DIAMOND_PICKAXE)) {
