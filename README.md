@@ -66,3 +66,8 @@ Turrets protect their inventories from players who aren't their owner.
 Turrets will prevent blocks being shift clicked onto them unless it is their owner.
 
 Turrets can be mined by any player regardless of the owner. You should ensure that your turret has a good view of its surrounding to reduce chances of other players mining it.
+
+**Donations**
+
+If you would like to donate, I accept BTC:
+1Dg9YLjigZXi6t7YRMhMmSYRghxZNmhsAK
