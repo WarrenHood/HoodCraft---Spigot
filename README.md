@@ -2,6 +2,9 @@
 
 **Staffs** - Place a stick in an anvil and call it either "Doom Staff" or "Lightning Staff". Try left clicking at some targets. The doom staff also supports sneak-left-clicking for an alternative attack. These attacks do cost health.
 
+
+**Turning coal to diamond** - Punching a block of coal has a 1/200 chance of dropping a diamond per punch.
+
 **Auto-Turrets**
 
 _**HoodCraft Turrets Guide**_
