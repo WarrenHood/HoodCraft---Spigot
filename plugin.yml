@@ -1,4 +1,4 @@
 name: HoodCraft
-version: 0.4
+version: 0.5
 main: com.nullbyte.hoodcraft.PlayerInteractListener
 api-version: 1.14

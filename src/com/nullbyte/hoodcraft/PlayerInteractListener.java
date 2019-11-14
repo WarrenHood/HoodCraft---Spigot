@@ -82,7 +82,64 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	public static long delayPerUpgrade = 1;
 	public static int turretsPerPerson = 5;
 	public boolean turretsSeeAll = false;
+	
+	public ArrayList<VelocityTracker> worldVelocities = null;
 	// Configurable variables end
+	
+	@Override
+	public void onEnable() {
+		Bukkit.getServer().getPluginManager().registerEvents(this, this);
+		this.plugin = this;
+		
+		String fileSeparator = System.getProperty("file.separator");
+		File pluginDir = new File("plugins" + fileSeparator + "HoodCraft");
+		pluginDir.mkdir();
+		loadConfig();
+		if(enableTurrets) loadTurrets();
+	}
+	
+	private class VelocityTracker extends BukkitRunnable {
+		public Entity ent;
+		public Location lastPos;
+		public Location thisPos;
+		public World thisWorld;
+		public Location loc;
+		public double ticks;
+		
+		public VelocityTracker(Location l, double ticks) {
+			ent = null;
+			lastPos = null;
+			thisPos = null;
+			loc = l;
+			this.ticks = ticks;
+		}
+		
+		public void setEnt(Entity e) {
+			if(ent != null && ent.equals(e)) return;
+			ent = e;
+			lastPos = e.getLocation();
+			thisPos = lastPos;
+		}
+		
+		@Override
+		public void run() {
+				if(ent != null && !ent.isDead()) {
+					lastPos = thisPos;
+					thisPos = ent.getLocation();
+				}
+				else {
+					ent = null;
+					lastPos = null;
+					thisPos = null;
+				}
+			}
+		
+		public Vector getVelocity() {
+			if(ent != null)
+					return thisPos.clone().subtract(lastPos).multiply(1.0/(double)ticks).toVector();
+			return new Vector(0.0,0.0,0.0);
+		}
+	} 
 	
 	public void loadConfig() {
 		String fileSeparator = System.getProperty("file.separator");
@@ -258,6 +315,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		private float arrowVelocity;
 		private long fireRate;
 		private long currentDelay;
+		private VelocityTracker velTracker;
 		
 		
 		public void setOwner(Entity e) {
@@ -285,6 +343,8 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			arrowVelocity = 0.4f;
 			fireRate = 64;
 			currentDelay = fireRate;
+			velTracker = new VelocityTracker(location, 1.0);
+			velTracker.runTaskTimer(plugin, 0, 1);
 			Inventory inv = getInventory();
 			if(loadTargets()) {
 				Bukkit.broadcastMessage("Old turret restored");
@@ -422,6 +482,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			return -1.0;
 		}
 		
+		
 		public Vector optimalVelocity(Location arrowSource, Entity target, double magV) {
 			
 			double theta = 0.5*Math.PI;
@@ -460,7 +521,11 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				theta -= thetaStep;
 			}
 			
-			if(bestVelocity != null) return bestVelocity;
+			if(bestVelocity != null) {
+				Vector newBest = rotateTo(bestVelocity, arrowSource, predictPath(target.getLocation(), velTracker.getVelocity(), minTicks));
+				//Bukkit.broadcastMessage(bestVelocity.toString() + " ==> " + newBest.toString());
+				return newBest;
+			}
 			
 			return null;
 		}
@@ -604,6 +669,21 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			return mode;
 		}
 		
+		public Vector rotateTo(Vector direction, Location start, Location end) {
+			Vector displacement = end.clone().toVector();
+			displacement = displacement.subtract(start.toVector());
+			displacement = displacement.multiply(new Vector(1.0,0.0,1.0));
+			displacement = displacement.normalize();
+			displacement = displacement.multiply(direction.clone().multiply(new Vector(1.0,0.0,1.0)).length());
+			displacement.add(new Vector(0.0 , direction.getY(), 0.0));
+			return displacement;
+		}
+		
+		public Location predictPath(Location start, Vector velocity, double ticks) {
+			//Bukkit.broadcastMessage("Vel = " + velocity.toString() + " for " + ticks + " ticks");
+			return start.clone().add(velocity.clone().multiply(ticks));
+		}
+		
 		public boolean shootNearby() {
 			double dx, dy, dz;
 			dx = 0.5;
@@ -619,6 +699,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				direction.normalize();
 				dispenser.getWorld().spawnArrow(arrowStart, direction, arrowVelocity, 1f);
 				dispenser.getWorld().playSound(arrowStart, Sound.BLOCK_METAL_BREAK, 1.0f, 10f);
+				velTracker.setEnt(closest);
 				return true;
 			}
 			
@@ -774,17 +855,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	private Random random = new Random();
 	
 	
-	@Override
-	public void onEnable() {
-	Bukkit.getServer().getPluginManager().registerEvents(this, this);
-	this.plugin = this;
 	
-	String fileSeparator = System.getProperty("file.separator");
-	File pluginDir = new File("plugins" + fileSeparator + "HoodCraft");
-	pluginDir.mkdir();
-	loadConfig();
-	if(enableTurrets) loadTurrets();
-	}
 	
 	
 	public Entity rayTrace(Location headPos, Location lookPos, World w, Vector dir) {
