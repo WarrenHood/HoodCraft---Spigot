@@ -27,10 +27,12 @@ import org.bukkit.block.Dispenser;
 import org.bukkit.block.data.Directional;
 import org.bukkit.block.data.Powerable;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Skeleton;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
@@ -54,6 +56,8 @@ import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 import org.fusesource.jansi.Ansi.Color;
 
+import net.minecraft.server.v1_14_R1.EntityArrow;
+
 public class PlayerInteractListener extends JavaPlugin implements Listener {
 	
 	JavaPlugin plugin;
@@ -66,7 +70,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	public static boolean enableTurrets = true;
 	public static boolean allowTurretInfinity = true;
 	public static boolean turretsUseAmmo = true;
-	public static double raycastPrecision = 0.05;
+	public static double raycastPrecision = 0.01;
 	public static float minTurretRange = 5.0f;
 	public static float maxTurretRange = 64.0f;
 	public static float rangePerUpgrade = 0.921875f;
@@ -77,6 +81,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	public static long maxDelay = 64;
 	public static long delayPerUpgrade = 1;
 	public static int turretsPerPerson = 5;
+	public boolean turretsSeeAll = false;
 	// Configurable variables end
 	
 	public void loadConfig() {
@@ -151,6 +156,9 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				case "turrets-per-person":
 					turretsPerPerson = Integer.parseInt(val);
 					break;
+				case "turrets-see-all":
+					if(val.contentEquals("true") || val.equals("1")) turretsSeeAll = true;
+					break;
 				}
 				
 			} while(currentString != null);
@@ -175,6 +183,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			fileString += "turret-max-fire-delay = " + maxDelay + "\n";
 			fileString += "turret-fire-delay-per-upgrade = " + delayPerUpgrade + "\n";
 			fileString += "turrets-per-person = " + turretsPerPerson + "\n";
+			fileString += "turrets-see-all = " + turretsSeeAll + "\n";
 			
 			try {
 				FileOutputStream fos = new FileOutputStream(path);
@@ -233,6 +242,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		}
 		
 	}
+
 	
 
 	
@@ -331,6 +341,124 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			return false;
 		}
 		
+		public boolean passesThrough(Location p1, Location p2, Location target, Double maxDist) {
+			Location cLoc = p1.clone();
+			double maxDistance = p1.distance(p2);
+			double travelled = 0;
+			Vector dir = p2.clone().subtract(p1).toVector().normalize();
+			while(travelled <= maxDistance) {
+				cLoc = cLoc.add(dir.clone().multiply(raycastPrecision));
+				if(cLoc.distance(target) <= maxDist) return true;
+				if(!p1.getWorld().getBlockAt(cLoc).isPassable()) return false;
+				travelled += raycastPrecision;
+			}
+			return false;
+		}
+		
+		public boolean hitsBlocks(Location p1, Location p2) {
+			Location cLoc = p1.clone();
+			double maxDistance = p1.distance(p2);
+			double travelled = 0;
+			Vector dir = p2.clone().subtract(p1).toVector().normalize();
+			while(travelled <= maxDistance) {
+				cLoc = cLoc.add(dir.clone().multiply(raycastPrecision));
+				if(!p1.getWorld().getBlockAt(cLoc).isPassable()) return true;
+				travelled += raycastPrecision;
+			}
+			return false;
+		}
+		
+		public Vector getXZProjection(Location v) {
+			return v.clone().toVector().multiply(new Vector(1,0,1));
+		}
+		
+		public Double reachTargetTicks(Location startPos, Location targetPos, Vector initialVelocity, double halfHeight ) {
+			double airFriction = 0.99;
+			double waterFriction = 0.8;
+			double g = -0.05;
+			World w = startPos.getWorld();
+			Location lastLocation = null;
+			Location currentLocation = startPos.clone();
+			Vector vel = initialVelocity.clone();
+			double tickStep = 1.0;
+			Block currentBlock;
+			Vector xzStart = getXZProjection(startPos);
+			double distToTarg = Math.abs(xzStart.distance(getXZProjection(targetPos)));
+			
+			double tick = 0;
+			double maxTicks = 100; // 5 Seconds
+			while(tick < maxTicks) {
+				lastLocation = currentLocation.clone();
+				currentLocation = currentLocation.add(vel.clone().multiply(tickStep));
+				//if(Math.abs(currentLocation.distance(targetPos)) <= halfHeight) return tick;
+				if(Math.abs(xzStart.distance(getXZProjection(currentLocation))) >= distToTarg) {
+					if(passesThrough(lastLocation, currentLocation, targetPos, halfHeight)) return tick;
+					return -1.0;
+				}
+				currentBlock = w.getBlockAt(currentLocation);
+				if(!currentBlock.isPassable()) {
+					//Bukkit.broadcastMessage("Collided with " + currentBlock.getType());
+					return -1.0;
+				}
+				// Below line would be great but it causes too much tick lag
+				//if(hitsBlocks(currentLocation, lastLocation)) return -1.0;
+				if(currentBlock.getType().equals(Material.WATER)) {
+					vel = vel.multiply(waterFriction*tickStep);
+				}
+				else {
+					vel = vel.multiply(airFriction*tickStep);
+				}
+				vel.add(new Vector(0,g*tickStep,0));
+				tick += tickStep;
+			}
+			
+			//Bukkit.broadcastMessage("Unable to hit a target in that time");
+			return -1.0;
+		}
+		
+		public Vector optimalVelocity(Location arrowSource, Entity target, double magV) {
+			
+			double theta = 0.5*Math.PI;
+			double thetaStep = Math.PI/180;
+			
+			Vector displacement = target.getLocation().clone().toVector().subtract(arrowSource.toVector()).multiply(new Vector(1.0,0,1.0));
+			double magXZ = Math.abs(displacement.length());
+			displacement = displacement.normalize();
+			
+			Vector currentVelocity;
+			Vector bestVelocity = null;
+			double minTicks = 1000.0;
+			double currentTick;
+			
+			
+			
+			while(theta > -Math.PI*0.5) {
+				// Vy / Vx = tan(theta)
+				// Vy = Vx * tan(theta)
+				// Vy = V sin(theta)
+				// Vx = V cos(theta)
+				currentVelocity = new Vector(displacement.getX(),0, displacement.getZ());
+				currentVelocity.normalize();
+				currentVelocity.multiply(magV*Math.cos(theta));
+				currentVelocity.add(new Vector(0.0,magV*Math.sin(theta),0.0));
+				currentTick = reachTargetTicks(arrowSource.clone(), target.getLocation().clone().add(new Vector(0,target.getHeight()*0.5,0)), currentVelocity, target.getHeight()*0.5);
+				/*
+				if(currentTick != -1) {
+					Bukkit.broadcastMessage("Found an optimal velocity after " + currentTick + " ticks");
+				}*/
+				if(currentTick != -1 && currentTick < minTicks) {
+					minTicks = currentTick;
+					bestVelocity = currentVelocity.clone();
+					break;
+				}
+				theta -= thetaStep;
+			}
+			
+			if(bestVelocity != null) return bestVelocity;
+			
+			return null;
+		}
+		
 		public boolean hasInfinityItem() {
 			if(!allowTurretInfinity) return false;
 			Inventory inv = getInventory();
@@ -393,6 +521,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 		public boolean hasLineOfSight(Vector facing, Location startPos, Location endPos) {
 			if(facing == null || startPos == null || endPos == null) return false;
 			Vector r = endPos.clone().subtract(startPos).toVector().normalize();
+			if(turretsSeeAll) return r.dot(facing) > 0;
 			return r.dot(facing) > 0 && !hitsBlock(startPos, endPos);
 		}
 		
@@ -408,7 +537,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				}
 		}
 		
-		public Location getClosestTarget(Location startLoc, Vector facing) {
+		public Entity getClosestTarget(Location startLoc, Vector facing) {
 			Collection<Entity> nearbyEnts = dispenser.getWorld().getNearbyEntities(startLoc, range, range, range);
 			
 			ArrayList<Entity> closest = new ArrayList<Entity>();
@@ -422,6 +551,7 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 					}
 				}
 				//if(hitsBlock(dispenser.getLocation().clone(), ent.getLocation().clone()) > dispenser.getLocation().clone().distance(ent.getLocation())) continue;
+				if(optimalVelocity(startLoc, ent, arrowVelocity) == null) continue;
 				if(mode.contentEquals("whitelist")) {
 					if(!ent.isDead() && entityTargets.contains(ent.getName())) {
 						if(!isOwner(ent)) closest.add(ent);
@@ -441,13 +571,14 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 				
 			Collections.sort(closest, new SortByDistance(startLoc.clone()));
 			if(closest.size() > 0) {
-				//Bukkit.broadcastMessage("Turret targetting " + closest.get(0).getName());
+				//Bukkit.broadcastMessage("Turret targeting " + closest.get(0).getName());
 				Entity closestEnt = closest.get(0);
-				ArrayList<Location> targetLocs = new ArrayList<Location>();
+				return closestEnt; //This wasn't here
+				/*ArrayList<Location> targetLocs = new ArrayList<Location>();
 				if(hasLineOfSight(facing.clone(), startLoc.clone(), closestEnt.getLocation().clone().add(new Vector(0,closestEnt.getHeight()*0.1,0)))) targetLocs.add(closestEnt.getLocation().clone().add(new Vector(0,closestEnt.getHeight()*(0.1+random.nextDouble()*0.1)-(random.nextDouble()*0.1),0)));
 				if(hasLineOfSight(facing.clone(), startLoc.clone(), closestEnt.getLocation().clone().add(new Vector(0,closestEnt.getHeight()*0.5,0)))) targetLocs.add(closestEnt.getLocation().clone().add(new Vector(0,closestEnt.getHeight()*(0.5+random.nextDouble()*0.15)-(random.nextDouble()*0.15),0)));
 				if(hasLineOfSight(facing.clone(), startLoc.clone(), closestEnt.getLocation().clone().add(new Vector(0,closestEnt.getHeight()*0.75,0)))) targetLocs.add(closestEnt.getLocation().clone().add(new Vector(0,closestEnt.getHeight()*(0.75+random.nextDouble()*0.25)-(random.nextDouble()*0.15),0)));
-				if(targetLocs.size() > 0) return targetLocs.get(random.nextInt(targetLocs.size()));
+				if(targetLocs.size() > 0) return targetLocs.get(random.nextInt(targetLocs.size()));*/
 			}
 			return null;
 		}
@@ -474,12 +605,18 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			dz = 0.5;
 			Location arrowStart = new Location(dispenser.getWorld(), (double)dispenser.getX()+dx, (double)dispenser.getY()+dy, (double)dispenser.getZ()+dz);
 			arrowStart.add(((Directional)dispenser.getBlockData()).getFacing().getDirection().multiply(0.6));
-			Location closest = getClosestTarget(arrowStart.clone(), ((Directional)dispenser.getBlockData()).getFacing().getDirection().multiply(0.52));
+			Entity closest = getClosestTarget(arrowStart.clone(), ((Directional)dispenser.getBlockData()).getFacing().getDirection().multiply(0.52)); // Was a Location
 			if(closest == null) return false;
-			dispenser.getWorld().playSound(arrowStart, Sound.BLOCK_METAL_BREAK, 1.0f, 10f);
-			Vector direction = closest.clone().subtract(arrowStart).toVector().normalize();
-			dispenser.getWorld().spawnArrow(arrowStart, direction, arrowVelocity, 1f);
-			return true;
+			//Vector direction = closest.clone().subtract(arrowStart).toVector().normalize(); // Making closest return Entity instead of Location now
+			Vector direction = optimalVelocity(arrowStart.clone(), closest, arrowVelocity);
+			if(direction != null) {
+				direction.normalize();
+				dispenser.getWorld().spawnArrow(arrowStart, direction, arrowVelocity, 1f);
+				dispenser.getWorld().playSound(arrowStart, Sound.BLOCK_METAL_BREAK, 1.0f, 10f);
+				return true;
+			}
+			
+			return false;
 		}
 		
 		public void updateModifiers(boolean firstUpdate) {
