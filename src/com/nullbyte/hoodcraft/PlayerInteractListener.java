@@ -345,10 +345,16 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 			Location cLoc = p1.clone();
 			double maxDistance = p1.distance(p2);
 			double travelled = 0;
+			Vector targetXZ = getXZProjection(target);
 			Vector dir = p2.clone().subtract(p1).toVector().normalize();
 			while(travelled <= maxDistance) {
 				cLoc = cLoc.add(dir.clone().multiply(raycastPrecision));
-				if(cLoc.distance(target) <= maxDist) return true;
+				//if(cLoc.distance(target) <= maxDist) return true;
+				// Accuracy change... Comment below; uncomment above
+				if(Math.abs(targetXZ.distance(getXZProjection(cLoc))) <= raycastPrecision*2) {
+					if(Math.abs(target.clone().subtract(cLoc).getY()) <= maxDist) return true;
+					return false;
+				}
 				if(!p1.getWorld().getBlockAt(cLoc).isPassable()) return false;
 				travelled += raycastPrecision;
 			}
