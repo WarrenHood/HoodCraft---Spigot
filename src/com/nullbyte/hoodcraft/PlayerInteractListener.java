@@ -895,57 +895,66 @@ public class PlayerInteractListener extends JavaPlugin implements Listener {
 	}
 	
 	public void saveTurrets() {
-		String fileSeparator = System.getProperty("file.separator");
-		String path = "plugins" + fileSeparator + "HoodCraft" + fileSeparator + "turrets.txt";
-		File turretFile = new File(path);
-		turretFile.delete();
-		String fileString = "";
-		for(DispenserTurret t : turrets) {
-			Location turretLoc = t.dispenser.getLocation();
-			fileString += turretLoc.getWorld().getName() + ";" + turretLoc.getBlockX() + ";" + turretLoc.getBlockY() + ";" + turretLoc.getBlockZ() + ";" + t.getOwner() + ";" + t.getMode() + "\n";		
-		}
-		
-		try {
-			FileOutputStream fos = new FileOutputStream(path);
-			fos.write(fileString.getBytes());
-			fos.flush();
-			fos.close();
-		} catch (IOException e) {
-			//e.printStackTrace();
+		for(World w : Bukkit.getWorlds()) {
+			String wName = w.getName();
+			String fileSeparator = System.getProperty("file.separator");
+			File folder = new File(wName + fileSeparator + "HoodCraft");
+			folder.mkdir();
+			String path = wName + fileSeparator + "HoodCraft" + fileSeparator + "turrets.txt";
+			File turretFile = new File(path);
+			turretFile.delete();
+			String fileString = "";
+			for(DispenserTurret t : turrets) {
+				Location turretLoc = t.dispenser.getLocation();
+				if(!turretLoc.getWorld().getName().equals(wName)) continue;
+				fileString += turretLoc.getWorld().getName() + ";" + turretLoc.getBlockX() + ";" + turretLoc.getBlockY() + ";" + turretLoc.getBlockZ() + ";" + t.getOwner() + ";" + t.getMode() + "\n";		
+			}
+			
+			try {
+				FileOutputStream fos = new FileOutputStream(path);
+				fos.write(fileString.getBytes());
+				fos.flush();
+				fos.close();
+			} catch (IOException e) {
+				//e.printStackTrace();
+			}
 		}
 	}
 	
 	public void loadTurrets() {
-		String fileSeparator = System.getProperty("file.separator");
-		String path = "plugins" + fileSeparator + "HoodCraft" + fileSeparator + "turrets.txt";
-		try {
-			BufferedReader inFile = new BufferedReader(new FileReader(path));
-			String currentCoords;
-			String[] locString;
-			String owner;
-			String mode;
-			int x,y,z;
-			Location currentLocation;
-			do {
-				currentCoords = inFile.readLine();
-				if(currentCoords == null) break;
-				locString = currentCoords.split(";");
-				x = Integer.parseInt(locString[1]);
-				y = Integer.parseInt(locString[2]);
-				z = Integer.parseInt(locString[3]);
-				owner = locString[4];
-				mode = locString[5];
-				Location turretLoc = new Location(Bukkit.getWorld(locString[0]), x, y, z);
-				Block turretBlock = Bukkit.getWorld(locString[0]).getBlockAt(turretLoc);
-				if(turretBlock.getType().equals(Material.DISPENSER)) {
-					addTurret(turretBlock);
-					getDispenserTurret(turretBlock).owner = owner;
-					getDispenserTurret(turretBlock).setMode(mode);
-				}
-					
-			} while(currentCoords != null);
-		} catch (IOException e) {
-			//e.printStackTrace();
+		for(World w : Bukkit.getWorlds()) {
+			String wName = w.getName();
+			String fileSeparator = System.getProperty("file.separator");
+			String path = wName + fileSeparator + "HoodCraft" + fileSeparator + "turrets.txt";
+			try {
+				BufferedReader inFile = new BufferedReader(new FileReader(path));
+				String currentCoords;
+				String[] locString;
+				String owner;
+				String mode;
+				int x,y,z;
+				Location currentLocation;
+				do {
+					currentCoords = inFile.readLine();
+					if(currentCoords == null) break;
+					locString = currentCoords.split(";");
+					x = Integer.parseInt(locString[1]);
+					y = Integer.parseInt(locString[2]);
+					z = Integer.parseInt(locString[3]);
+					owner = locString[4];
+					mode = locString[5];
+					Location turretLoc = new Location(Bukkit.getWorld(locString[0]), x, y, z);
+					Block turretBlock = Bukkit.getWorld(locString[0]).getBlockAt(turretLoc);
+					if(turretBlock.getType().equals(Material.DISPENSER)) {
+						addTurret(turretBlock);
+						getDispenserTurret(turretBlock).owner = owner;
+						getDispenserTurret(turretBlock).setMode(mode);
+					}
+						
+				} while(currentCoords != null);
+			} catch (IOException e) {
+				//e.printStackTrace();
+			}
 		}
 	}
 	
